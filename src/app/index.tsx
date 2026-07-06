@@ -1,98 +1,105 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { type Href, useRouter } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+import { Button } from '@/components/ui/button';
+import { Card, CardText } from '@/components/ui/card';
+import { Screen } from '@/components/ui/screen';
+import { spacing, typography } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const theme = useTheme();
+
+  const destinations = [
+    {
+      title: 'Routine Builder',
+      description: 'Shape workouts before storage and import arrive.',
+      meta: 'Plan',
+      href: '/builder',
+    },
+    {
+      title: 'Workout Player',
+      description: 'A focused player shell for the future timer state machine.',
+      meta: 'Train',
+      href: '/player',
+    },
+    {
+      title: 'History',
+      description: 'A quiet place for completed sessions and streaks later.',
+      meta: 'Review',
+      href: '/history',
+    },
+    {
+      title: 'Settings',
+      description: 'Local app preferences will live here.',
+      meta: 'Tune',
+      href: '/settings',
+    },
+  ] as const;
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <Screen>
+      <View style={styles.hero}>
+        <Text style={[styles.kicker, { color: theme.accent }]}>Android-first workout timer</Text>
+        <Text style={[styles.brand, { color: theme.text }]}>TEMPO</Text>
+        <Text style={[styles.tagline, { color: theme.muted }]}>No-bullshit workout timing.</Text>
+      </View>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+      <View style={styles.actions}>
+        <Button title="Build Routine" onPress={() => router.push('/builder' as Href)} />
+        <Button
+          title="Open Player"
+          variant="secondary"
+          onPress={() => router.push('/player' as Href)}
+        />
+      </View>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+      <View style={styles.destinationList}>
+        {destinations.map((destination) => (
+          <Card
+            key={destination.href}
+            onPress={() => router.push(destination.href as Href)}
+            accessibilityLabel={`Open ${destination.title}`}>
+            <CardText
+              title={destination.title}
+              description={destination.description}
+              meta={destination.meta}
+            />
+          </Card>
+        ))}
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+  hero: {
+    gap: spacing.sm,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.lg,
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
+  kicker: {
+    fontSize: typography.size.xs,
+    lineHeight: typography.lineHeight.xs,
+    fontWeight: '800',
     textTransform: 'uppercase',
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  brand: {
+    fontSize: typography.size.display,
+    lineHeight: typography.lineHeight.display,
+    fontWeight: '900',
+  },
+  tagline: {
+    fontSize: typography.size.lg,
+    lineHeight: typography.lineHeight.lg,
+    fontWeight: '700',
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  destinationList: {
+    gap: spacing.md,
   },
 });
