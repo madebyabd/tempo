@@ -1,4 +1,4 @@
-export type RoutineBlockType = 'time' | 'reps' | 'open' | 'rest';
+export type RoutineBlockType = 'time' | 'reps' | 'rest';
 
 export interface BaseRoutineBlock {
   id: string;
@@ -6,6 +6,8 @@ export interface BaseRoutineBlock {
   name: string;
   order: number;
   notes?: string;
+  sourceExerciseId?: string;
+  restBetweenSetsSeconds?: number;
 }
 
 export interface TimeExerciseBlock extends BaseRoutineBlock {
@@ -24,23 +26,28 @@ export interface RepsExerciseBlock extends BaseRoutineBlock {
   totalSets: number;
 }
 
-export interface OpenExerciseBlock extends BaseRoutineBlock {
-  type: 'open';
-}
-
 export interface RestBlock extends BaseRoutineBlock {
   type: 'rest';
   durationSeconds: number;
   isInterSetRest?: boolean;
 }
 
-export type RoutineBlock = TimeExerciseBlock | RepsExerciseBlock | OpenExerciseBlock | RestBlock;
+export type RoutineBlock = TimeExerciseBlock | RepsExerciseBlock | RestBlock;
 
 export interface Routine {
   id: string;
   name: string;
   description?: string;
   blocks: RoutineBlock[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoutineSummary {
+  id: string;
+  name: string;
+  description?: string;
+  blockCount: number;
   createdAt: string;
   updatedAt: string;
 }

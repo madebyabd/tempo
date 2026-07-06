@@ -28,6 +28,7 @@ export type SetExpansionInput = RepsSetExpansionInput | TimeSetExpansionInput;
 
 export function createSetExpandedBlocks(input: SetExpansionInput): RoutineBlock[] {
   const blocks: RoutineBlock[] = [];
+  const sourceExerciseId = input.createId('exercise');
   let order = input.orderStart;
 
   for (let setNumber = 1; setNumber <= input.sets; setNumber += 1) {
@@ -41,6 +42,8 @@ export function createSetExpandedBlocks(input: SetExpansionInput): RoutineBlock[
         sets: 1,
         setNumber,
         totalSets: input.sets,
+        sourceExerciseId,
+        restBetweenSetsSeconds: input.restBetweenSetsSeconds,
         notes: input.notes,
       });
     } else {
@@ -53,6 +56,8 @@ export function createSetExpandedBlocks(input: SetExpansionInput): RoutineBlock[
         sets: 1,
         setNumber,
         totalSets: input.sets,
+        sourceExerciseId,
+        restBetweenSetsSeconds: input.restBetweenSetsSeconds,
         notes: input.notes,
       });
     }
@@ -67,6 +72,8 @@ export function createSetExpandedBlocks(input: SetExpansionInput): RoutineBlock[
         order,
         durationSeconds: input.restBetweenSetsSeconds,
         isInterSetRest: true,
+        sourceExerciseId,
+        restBetweenSetsSeconds: input.restBetweenSetsSeconds,
       });
       order += 1;
     }

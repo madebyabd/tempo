@@ -54,9 +54,6 @@ export function parseRoutineImport(input: string, options: ParseRoutineOptions =
       case 'REPS':
         parseRepsBlock(fields, lineNumber, rawLine, errors, blocks, createId);
         return;
-      case 'OPEN':
-        parseOpenBlock(fields, lineNumber, rawLine, errors, blocks, createId);
-        return;
       case 'REST':
         parseRestBlock(fields, lineNumber, rawLine, errors, blocks, createId);
         return;
@@ -174,30 +171,6 @@ function parseRepsBlock(
       createId,
     })
   );
-}
-
-function parseOpenBlock(
-  fields: string[],
-  lineNumber: number,
-  rawLine: string,
-  errors: ParserError[],
-  blocks: RoutineBlock[],
-  createId: (prefix: string) => string
-) {
-  const name = fields[1] ?? '';
-
-  if (!name) {
-    addError(errors, lineNumber, 'OPEN name is required.', rawLine);
-    return;
-  }
-
-  blocks.push({
-    id: createId('block'),
-    type: 'open',
-    name,
-    order: blocks.length + 1,
-    notes: joinFields(fields, 2) || undefined,
-  });
 }
 
 function parseRestBlock(

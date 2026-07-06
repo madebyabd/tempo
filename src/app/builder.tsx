@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardText } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { radius, spacing, typography } from '@/constants/theme';
+import { saveRoutine } from '@/db/routineRepository';
 import { createSetExpandedBlocks } from '@/domain/routineBlocks';
-import { parseRoutineImport } from '@/domain/routineImport';
+import { createLocalId, parseRoutineImport } from '@/domain/routineImport';
 import { sampleRoutineText } from '@/domain/sampleRoutine';
 import type {
   ParseRoutineResult,
   ParserError,
+  Routine,
   RoutineBlock,
   RoutineBlockType,
 } from '@/domain/types';
@@ -18,7 +20,7 @@ import { useTheme } from '@/hooks/use-theme';
 
 type BuilderMode = 'manual' | 'import';
 
-const blockTypes: RoutineBlockType[] = ['reps', 'time', 'rest', 'open'];
+const blockTypes: RoutineBlockType[] = ['reps', 'time', 'rest'];
 let draftBlockIdCounter = 0;
 
 export default function RoutineBuilderScreen() {
@@ -69,6 +71,9 @@ function ManualBuilder() {
   const [notes, setNotes] = useState('');
   const [blocks, setBlocks] = useState<RoutineBlock[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   function handleBlockTypeChange(nextType: RoutineBlockType) {
     const previousType = blockType;
@@ -99,6 +104,8 @@ function ManualBuilder() {
 
     if (result.errors.length > 0) {
       setErrors(result.errors);
+      setSaveMessage('');
+      setSaveError('');
       return;
     }
 
@@ -108,6 +115,8 @@ function ManualBuilder() {
 
     setBlocks((currentBlocks) => [...currentBlocks, ...result.blocks]);
     setErrors([]);
+    setSaveMessage('');
+    setSaveError('');
     clearBlockFields(blockType);
   }
 
@@ -134,6 +143,43 @@ function ManualBuilder() {
   function handleClearBlocks() {
     setBlocks([]);
     setErrors([]);
+    setSaveMessage('');
+    setSaveError('');
+  }
+
+  async function handleSaveRoutine() {
+    const trimmedRoutineName = routineName.trim();
+
+    if (!trimmedRoutineName) {
+      setSaveMessage('');
+      setSaveError('Routine name is required before saving.');
+      return;
+    }
+
+    if (blocks.length === 0) {
+      setSaveMessage('');
+      setSaveError('Add at least one block before saving.');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError('');
+    setSaveMessage('');
+
+    try {
+      const routine = createRoutineForSave({
+        name: trimmedRoutineName,
+        description,
+        blocks,
+      });
+
+      await saveRoutine(routine);
+      setSaveMessage(`Saved "${routine.name}" locally.`);
+    } catch (error) {
+      setSaveError(getReadableError(error));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -204,7 +250,8 @@ function ManualBuilder() {
         routineName={routineName}
       />
 
-      <Button title="Save Routine - coming next" disabled />
+      <SaveStatus message={saveMessage} error={saveError} />
+      <Button title={isSaving ? 'Saving...' : 'Save Routine'} disabled={isSaving} onPress={handleSaveRoutine} />
     </>
   );
 }
@@ -312,7 +359,7 @@ function BlockFields({
         label="Notes"
         multiline
         onChangeText={setNotes}
-        placeholder={blockType === 'open' ? 'Tap when ready' : 'Optional notes'}
+        placeholder="Optional notes"
         value={notes}
       />
     </View>
@@ -361,9 +408,32 @@ function TextImportBuilder() {
   const [parseResult, setParseResult] = useState<ParseRoutineResult>(() =>
     parseRoutineImport(sampleRoutineText)
   );
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   function handleParseRoutine() {
     setParseResult(parseRoutineImport(importText));
+    setSaveMessage('');
+    setSaveError('');
+  }
+
+  async function handleSaveImportedRoutine(routine: Routine) {
+    setIsSaving(true);
+    setSaveMessage('');
+    setSaveError('');
+
+    try {
+      await saveRoutine({
+        ...routine,
+        updatedAt: new Date().toISOString(),
+      });
+      setSaveMessage(`Saved "${routine.name}" locally.`);
+    } catch (error) {
+      setSaveError(getReadableError(error));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -392,15 +462,29 @@ function TextImportBuilder() {
       </View>
 
       {parseResult.success ? (
-        <ImportSuccessPreview result={parseResult} />
+        <ImportSuccessPreview
+          isSaving={isSaving}
+          onSave={handleSaveImportedRoutine}
+          result={parseResult}
+        />
       ) : (
         <ImportErrorPreview errors={parseResult.errors} />
       )}
+
+      <SaveStatus message={saveMessage} error={saveError} />
     </>
   );
 }
 
-function ImportSuccessPreview({ result }: { result: Extract<ParseRoutineResult, { success: true }> }) {
+function ImportSuccessPreview({
+  isSaving,
+  onSave,
+  result,
+}: {
+  isSaving: boolean;
+  onSave: (routine: Routine) => void;
+  result: Extract<ParseRoutineResult, { success: true }>;
+}) {
   const { routine } = result;
   const blockCountText = routine.blocks.length === 1 ? '1 block' : `${routine.blocks.length} blocks`;
 
@@ -414,6 +498,7 @@ function ImportSuccessPreview({ result }: { result: Extract<ParseRoutineResult, 
         />
       </Card>
       <BlockPreviewList blocks={routine.blocks} />
+      <Button title={isSaving ? 'Saving...' : 'Save Imported Routine'} disabled={isSaving} onPress={() => onSave(routine)} />
     </View>
   );
 }
@@ -710,21 +795,8 @@ function buildRoutineBlock({
     };
   }
 
-  if (errors.length > 0) {
-    return { errors };
-  }
-
   return {
-    errors,
-    blocks: [
-      {
-        id: createDraftBlockId(),
-        type,
-        name: trimmedName,
-        order,
-        notes: trimmedNotes || undefined,
-      } satisfies RoutineBlock,
-    ],
+    errors: ['Unsupported block type.'],
   };
 }
 
@@ -765,6 +837,35 @@ function createDraftBlockId() {
   return `draft_block_${Date.now().toString(36)}_${draftBlockIdCounter.toString(36)}`;
 }
 
+function createRoutineForSave({
+  blocks,
+  description,
+  name,
+}: {
+  blocks: RoutineBlock[];
+  description: string;
+  name: string;
+}): Routine {
+  const now = new Date().toISOString();
+
+  return {
+    id: createLocalId('routine'),
+    name,
+    description: description.trim() || undefined,
+    blocks: cloneBlocksForSave(blocks),
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function cloneBlocksForSave(blocks: RoutineBlock[]) {
+  return blocks.map((block, index) => ({
+    ...block,
+    id: createLocalId('block'),
+    order: index + 1,
+  }));
+}
+
 function formatExpandedBlockPreview(block: RoutineBlock) {
   switch (block.type) {
     case 'reps':
@@ -773,8 +874,6 @@ function formatExpandedBlockPreview(block: RoutineBlock) {
       return `${block.name} - ${formatSetLabel(block)}${block.durationSeconds} sec`;
     case 'rest':
       return `${block.name} - ${block.durationSeconds} sec`;
-    case 'open':
-      return `${block.name} - tap to complete`;
   }
 }
 
@@ -788,6 +887,30 @@ function formatSetLabel(block: Extract<RoutineBlock, { type: 'reps' | 'time' }>)
 
 function formatErrorLine(error: ParserError) {
   return error.lineNumber > 0 ? `Line ${error.lineNumber}:` : 'Routine:';
+}
+
+function SaveStatus({ error, message }: { error: string; message: string }) {
+  const theme = useTheme();
+
+  if (!error && !message) {
+    return null;
+  }
+
+  return (
+    <Card
+      style={[
+        styles.statusCard,
+        { backgroundColor: error ? theme.warningSoft : theme.accentSoft },
+      ]}>
+      <Text style={[styles.statusText, { color: error ? theme.warning : theme.accent }]}>
+        {error || message}
+      </Text>
+    </Card>
+  );
+}
+
+function getReadableError(error: unknown) {
+  return error instanceof Error ? error.message : 'Something went wrong.';
 }
 
 const styles = StyleSheet.create({
@@ -946,6 +1069,14 @@ const styles = StyleSheet.create({
     fontSize: typography.size.xs,
     lineHeight: typography.lineHeight.xs,
     fontWeight: '600',
+  },
+  statusCard: {
+    borderWidth: 0,
+  },
+  statusText: {
+    fontSize: typography.size.sm,
+    lineHeight: typography.lineHeight.sm,
+    fontWeight: '800',
   },
   pressed: {
     opacity: 0.72,
